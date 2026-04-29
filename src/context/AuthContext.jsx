@@ -1,93 +1,67 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { auth, db, withRetry } from '../firebase';
+import { createContext, useContext, useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
+import { auth, db } from "../firebase";
+
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signOut,
-  onAuthStateChanged,
-} from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
-import toast from 'react-hot-toast';
+  onAuthStateChanged
+} from "firebase/auth";
+
+import {
+  doc,
+  setDoc,
+  getDoc
+} from "firebase/firestore";
+
+import toast from "react-hot-toast";
 
 const AuthContext = createContext();
 
-// ─── helpers ────────────────────────────────────────────────────────────────
-
-/**
- * Build a minimal user object that is safe even when Firestore is unreachable.
- */
-function buildFallbackUser(firebaseUser) {
-  return {
-    id: firebaseUser.uid,
-    uid: firebaseUser.uid,
-    email: firebaseUser.email,
-    name: firebaseUser.displayName || firebaseUser.email,
-    role: null, // caller must handle missing role
-    _profileMissing: true,
-  };
-}
-
-/**
- * Fetch the Firestore profile with up to 3 retries.
- * Returns the document snapshot, or null on failure.
- */
-async function fetchUserProfile(uid) {
-  const docRef = doc(db, 'users', uid);
-  try {
-    const snap = await withRetry(() => getDoc(docRef), 3, 800);
-    return snap.exists() ? snap : null;
-  } catch (err) {
-    console.error('❌ fetchUserProfile failed after retries:', err.message);
-    return null;
-  }
-}
-
-// ─── Provider ───────────────────────────────────────────────────────────────
+export const useAuth = () => useContext(AuthContext);
 
 export function AuthProvider({ children }) {
-  const [user, setUser]       = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [profileError, setProfileError] = useState(false);
   const navigate = useNavigate();
 
-  // ── onAuthStateChanged ──────────────────────────────────────────────────
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  /* =====================================================
+     AUTH STATE LISTENER
+  ===================================================== */
   useEffect(() => {
- onAuthStateChanged(auth, (user) => {
-   setUser(user || null)
-   setLoading(false)
- })
-}, [])
-        return;
-      }
-
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       try {
-        const snap = await fetchUserProfile(firebaseUser.uid);
+        if (!firebaseUser) {
+          setUser(null);
+          setLoading(false);
+          return;
+        }
 
-        if (snap) {
+        const userRef = doc(db, "users", firebaseUser.uid);
+        const userSnap = await getDoc(userRef);
+
+        if (userSnap.exists()) {
           setUser({
-            id: firebaseUser.uid,
             uid: firebaseUser.uid,
-            ...snap.data(),
+            ...userSnap.data()
           });
         } else {
-          // Profile missing or Firestore unreachable — degrade gracefully
-          const fallback = buildFallbackUser(firebaseUser);
-          setUser(fallback);
-          setProfileError(true);
-
-          if (!snap) {
-            // true Firestore failure (not just missing doc)
-            toast.error('Could not load your profile. Some features may be limited.', {
-              id: 'profile-load-error',
-              duration: 5000,
-            });
-          }
+          setUser({
+            uid: firebaseUser.uid,
+            email: firebaseUser.email,
+            role: null
+          });
         }
-      } catch (err) {
-        console.error('❌ Auth state handler error:', err);
-        setUser(buildFallbackUser(firebaseUser));
-        setProfileError(true);
+      } catch (error) {
+        console.error("Auth state error:", error);
+
+        setUser({
+          uid: firebaseUser?.uid || null,
+          email: firebaseUser?.email || null,
+          role: null
+        });
       } finally {
         setLoading(false);
       }
@@ -96,118 +70,150 @@ export function AuthProvider({ children }) {
     return () => unsubscribe();
   }, []);
 
-  // ── login ───────────────────────────────────────────────────────────────
-  const login = useCallback(async (email, password) => {
-    try {
-      const credential = await signInWithEmailAndPassword(auth, email, password);
+  /* =====================================================
+     SIGNUP
+  ===================================================== */
+  const signup = useCallback(
+    async (name, email, password, role) => {
+      try {
+        const credential = await createUserWithEmailAndPassword(
+          auth,
+          email,
+          password
+        );
 
-      // Fetch role separately for redirect (onAuthStateChanged handles state)
-      const snap = await fetchUserProfile(credential.user.uid);
+        const userData = {
+          uid: credential.user.uid,
+          name,
+          email,
+          role,
+          skills: [],
+          createdAt: new Date().toISOString()
+        };
 
-      if (snap?.exists()) {
-        const { role } = snap.data();
-        navigate(`/${role}`);
-      } else {
-        // Profile missing — send to landing, they can still browse
-        navigate('/');
-        toast('Your profile could not be loaded. Please try again.', {
-          icon: '⚠️',
-          id: 'login-profile-warn',
-        });
+        await setDoc(doc(db, "users", credential.user.uid), userData);
+
+        setUser(userData);
+
+        toast.success("Account created successfully!");
+
+        if (role === "student") {
+          navigate("/student-dashboard");
+        } else {
+          navigate("/company-dashboard");
+        }
+
+        return credential.user;
+      } catch (error) {
+        toast.error(getErrorMessage(error.code));
+        throw error;
       }
+    },
+    [navigate]
+  );
 
-      toast.success('Logged in successfully!');
-      return credential.user;
-    } catch (err) {
-      const msg = getFriendlyAuthError(err.code || err.message);
-      throw new Error(msg);
-    }
-  }, [navigate]);
+  /* =====================================================
+     LOGIN
+  ===================================================== */
+  const login = useCallback(
+    async (email, password) => {
+      try {
+        const credential = await signInWithEmailAndPassword(
+          auth,
+          email,
+          password
+        );
 
-  // ── signup ──────────────────────────────────────────────────────────────
-  const signup = useCallback(async (name, email, password, role) => {
-    try {
-      const credential = await createUserWithEmailAndPassword(auth, email, password);
+        const userRef = doc(db, "users", credential.user.uid);
+        const userSnap = await getDoc(userRef);
 
-      const userData = {
-        uid: credential.user.uid,
-        name,
-        email,
-        role,
-        skills: [],
-        createdAt: new Date().toISOString(),
-      };
+        if (userSnap.exists()) {
+          const userData = userSnap.data();
 
-      await withRetry(() =>
-        setDoc(doc(db, 'users', credential.user.uid), userData)
-      );
+          setUser({
+            uid: credential.user.uid,
+            ...userData
+          });
 
-      navigate(`/${role}`);
-      toast.success('Account created successfully!');
-      return credential.user;
-    } catch (err) {
-      const msg = getFriendlyAuthError(err.code || err.message);
-      throw new Error(msg);
-    }
-  }, [navigate]);
+          toast.success("Login successful!");
 
-  // ── logout ──────────────────────────────────────────────────────────────
+          if (userData.role === "student") {
+            navigate("/student-dashboard");
+          } else {
+            navigate("/company-dashboard");
+          }
+        } else {
+          toast.error("Profile not found.");
+        }
+
+        return credential.user;
+      } catch (error) {
+        toast.error(getErrorMessage(error.code));
+        throw error;
+      }
+    },
+    [navigate]
+  );
+
+  /* =====================================================
+     LOGOUT
+  ===================================================== */
   const logout = useCallback(async () => {
     try {
       await signOut(auth);
-      toast.success('Logged out successfully');
-      navigate('/login');
-    } catch {
-      toast.error('Failed to log out. Please try again.');
+      setUser(null);
+      toast.success("Logged out successfully");
+      navigate("/login");
+    } catch (error) {
+      toast.error("Logout failed");
     }
   }, [navigate]);
 
+  /* =====================================================
+     LOADING SCREEN
+  ===================================================== */
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-950 text-white">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p>Loading SkillMatch...</p>
+        </div>
+      </div>
+    );
+  }
+
+  /* =====================================================
+     PROVIDER
+  ===================================================== */
   return (
-    <AuthContext.Provider value={{ user, login, signup, logout, loading, profileError }}>
-      {loading ? <FullPageLoader /> : children}
+    <AuthContext.Provider
+      value={{
+        user,
+        login,
+        signup,
+        logout,
+        loading
+      }}
+    >
+      {children}
     </AuthContext.Provider>
   );
 }
 
-// ─── Full-page loading spinner ───────────────────────────────────────────────
-function FullPageLoader() {
-  return (
-    <div style={{
-      minHeight: '100vh',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
-      gap: '1rem',
-    }}>
-      <div style={{
-        width: 48, height: 48,
-        border: '4px solid rgba(99,102,241,0.2)',
-        borderTop: '4px solid #6366f1',
-        borderRadius: '50%',
-        animation: 'spin 0.9s linear infinite',
-      }} />
-      <p style={{ color: '#94a3b8', fontSize: 14, fontFamily: 'Inter, sans-serif' }}>
-        Connecting to SkillMatch…
-      </p>
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-    </div>
-  );
-}
-
-// ─── Friendly Firebase error messages ───────────────────────────────────────
-function getFriendlyAuthError(code) {
-  const map = {
-    'auth/user-not-found':      'No account found with this email.',
-    'auth/wrong-password':      'Incorrect password. Please try again.',
-    'auth/invalid-credential':  'Invalid email or password.',
-    'auth/email-already-in-use':'An account with this email already exists.',
-    'auth/weak-password':       'Password must be at least 6 characters.',
-    'auth/network-request-failed': 'Network error. Please check your connection.',
-    'auth/too-many-requests':   'Too many failed attempts. Please wait and try again.',
+/* =====================================================
+   FIREBASE FRIENDLY ERRORS
+===================================================== */
+function getErrorMessage(code) {
+  const errors = {
+    "auth/user-not-found": "No account found",
+    "auth/wrong-password": "Incorrect password",
+    "auth/invalid-credential": "Invalid email or password",
+    "auth/email-already-in-use": "Email already registered",
+    "auth/weak-password": "Password should be at least 6 characters",
+    "auth/network-request-failed": "Network error",
+    "auth/too-many-requests": "Too many attempts. Try later"
   };
-  return map[code] || 'An authentication error occurred. Please try again.';
-}
 
-export const useAuth = () => useContext(AuthContext);
+  return errors[code] || "Something went wrong";
+}
