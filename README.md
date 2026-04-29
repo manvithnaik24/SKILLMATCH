@@ -38,4 +38,4 @@ Copy Firebase config into your project
 npm start
 🌐 Live Demo
 
-👉https://skillmatch-7l9jxmyxk-manvithnaik24-2701s-projects.vercel.app
+👉https://skillmatch-peach.vercel.app/
