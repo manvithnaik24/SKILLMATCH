@@ -1,16 +1,41 @@
-# React + Vite
+📌 Project Title
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Mini Job / Internship Portal
 
-Currently, two official plugins are available:
+📝 Description
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+The Mini Job/Internship Portal is a web-based platform designed to help students discover and apply for internships and part-time opportunities.
 
-## React Compiler
+It provides a centralized system where administrators can post job listings, and students can browse, apply, and track their application status. The platform simplifies the hiring process while ensuring structured role-based access for admins and users.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+🚀 Features
+🔐 Role-based authentication (Admin & Student)
+🧑‍💼 Admin dashboard to post and manage job listings
+📄 Students can browse and apply for jobs/internships
+📊 Application tracking system for students
+📂 Organized job listings with details (role, company, deadline)
+⚡ Real-time database updates using Firebase
+🔎 Easy-to-use and responsive interface
+🛠️ Tech Stack
+Frontend: HTML, CSS, JavaScript (or React if used)
+Backend: Firebase Authentication, Cloud Firestore
+Tools: Firebase Console, Visual Studio Code
+Deployment: Vercel / Netlify / Firebase Hosting
+⚙️ Setup Instructions
+1.⁠ ⁠Clone the repository
+git clone https://github.com/your-username/mini-job-portal.git
+2.⁠ ⁠Navigate to project folder
+cd mini-job-portal
+3.⁠ ⁠Install dependencies (if using React)
+npm install
+4.⁠ ⁠Configure Firebase
+Go to Firebase Console
+Create a new project
+Enable Authentication (Email/Password)
+Enable Firestore Database
+Copy Firebase config into your project
+5.⁠ ⁠Run the project
+npm start
+🌐 Live Demo
 
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+👉https://skillmatch-7l9jxmyxk-manvithnaik24-2701s-projects.vercel.app
