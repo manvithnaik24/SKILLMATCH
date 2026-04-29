@@ -53,12 +53,11 @@ export function AuthProvider({ children }) {
 
   // ── onAuthStateChanged ──────────────────────────────────────────────────
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      setProfileError(false);
-
-      if (!firebaseUser) {
-        setUser(null);
-        setLoading(false);
+ onAuthStateChanged(auth, (user) => {
+   setUser(user || null)
+   setLoading(false)
+ })
+}, [])
         return;
       }
 
