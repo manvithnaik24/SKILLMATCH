@@ -33,6 +33,48 @@ const ProtectedRoute = ({ children, allowedRole }) => {
     return <Navigate to="/login" replace />;
   }
 
+  // Profile loaded but role is missing (Firestore offline fallback)
+  if (!user.role) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: '#0f172a',
+        color: '#f1f5f9',
+        fontFamily: 'Inter, sans-serif',
+        gap: '1rem',
+        padding: '2rem',
+        textAlign: 'center',
+      }}>
+        <span style={{ fontSize: 48 }}>⚠️</span>
+        <h2 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>Profile unavailable</h2>
+        <p style={{ color: '#94a3b8', maxWidth: 380, margin: 0 }}>
+          Your profile could not be loaded — you may be offline or the connection timed out.
+          Please check your internet connection and refresh the page.
+        </p>
+        <button
+          onClick={() => window.location.reload()}
+          style={{
+            marginTop: 8,
+            padding: '10px 24px',
+            background: '#6366f1',
+            color: '#fff',
+            border: 'none',
+            borderRadius: 8,
+            fontSize: 14,
+            fontWeight: 600,
+            cursor: 'pointer',
+          }}
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
   if (allowedRole && user.role !== allowedRole) {
     return <Navigate to={`/${user.role}`} replace />;
   }

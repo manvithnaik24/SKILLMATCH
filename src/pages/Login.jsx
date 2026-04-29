@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Briefcase, GraduationCap, Loader2, AlertCircle } from 'lucide-react';
+import { Briefcase, GraduationCap, Loader2, AlertCircle, WifiOff } from 'lucide-react';
 
 export default function Login() {
   const { login, signup } = useAuth();
@@ -16,6 +16,18 @@ export default function Login() {
   // States
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+  useEffect(() => {
+    const goOnline  = () => setIsOnline(true);
+    const goOffline = () => setIsOnline(false);
+    window.addEventListener('online',  goOnline);
+    window.addEventListener('offline', goOffline);
+    return () => {
+      window.removeEventListener('online',  goOnline);
+      window.removeEventListener('offline', goOffline);
+    };
+  }, []);
 
   const toggleMode = () => {
     setIsLoginMode(!isLoginMode);
@@ -41,7 +53,8 @@ export default function Login() {
         await signup(name, email, password, selectedRole);
       }
     } catch (err) {
-      setError(err.message || 'An error occurred during authentication.');
+      // err.message is already friendly from AuthContext
+      setError(err.message || 'An error occurred. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -66,6 +79,15 @@ export default function Login() {
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-8 px-4 shadow-sm sm:rounded-xl sm:px-10 border border-slate-200">
           
+          {/* Offline banner */}
+          {!isOnline && (
+            <div className="mb-4 p-3 rounded-md bg-amber-50 border border-amber-200 flex items-center gap-2 text-amber-800">
+              <WifiOff className="w-4 h-4 flex-shrink-0" />
+              <p className="text-sm font-medium">You appear to be offline. Check your connection and try again.</p>
+            </div>
+          )}
+
+          {/* Auth error */}
           {error && (
             <div className="mb-6 p-4 rounded-md bg-red-50 border border-red-200 flex items-start gap-3 text-red-800">
               <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
@@ -175,11 +197,13 @@ export default function Login() {
             <div className="pt-2">
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || !isOnline}
                 className="flex w-full justify-center items-center rounded-md border border-transparent bg-blue-600 py-2.5 px-4 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:bg-blue-400 disabled:cursor-not-allowed transition-colors"
               >
                 {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                {isLoginMode ? 'Sign In' : 'Create Account'}
+                {loading
+                  ? (isLoginMode ? 'Signing in…' : 'Creating account…')
+                  : (isLoginMode ? 'Sign In' : 'Create Account')}
               </button>
             </div>
           </form>
